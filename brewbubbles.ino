@@ -7,7 +7,7 @@
 //byte mac_addr[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 // MySQL server information
-IPAddress server_addr(192,168,86,40);
+IPAddress server_addr(192,168,86,250);
 char user[] = "beerbrew";     // MySQL user login username
 char password[] = "beerbrew"; // MySQL user login password
 char db[] = "beerbrew";
@@ -36,6 +36,7 @@ volatile bool datatosave = false;
 volatile int count=0;
 const byte interruptPin = 2;
 
+// LED Matrix
 ArduinoLEDMatrix matrix;
 const uint32_t happy[] = {
     0x19819,
@@ -47,6 +48,9 @@ const uint32_t heart[] = {
     0x44042081,
     0x100a0040
 };
+
+// Buzzer
+int buzzerPin = 4;
 
 void isr()
 {
@@ -78,11 +82,24 @@ void isr()
   }
 }
 
+void buzz(int buzzDuration, int count, int pauseDuration) {
+  for (int i = 0; i<count; i++) {
+    digitalWrite(buzzerPin, LOW);
+    delay(buzzDuration);
+    digitalWrite(buzzerPin, HIGH);
+    delay(pauseDuration);
+  }
+  delay(100);
+}
+
 // Setup Wi‑Fi and SQL interfacess
 void setup() {
   Serial.begin(9600);
   matrix.begin();
-  matrix.loadFrame(LEDMATRIX_CLOUD_WIFI);
+
+  // Buzzer config
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, HIGH);  
 
   // Begin Wi‑Fi section
   Serial.println("Connecting to WiFi  ");
@@ -91,6 +108,8 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+  matrix.loadFrame(LEDMATRIX_CLOUD_WIFI);
+  buzz(400, 4, 100);
   // print out info about the connection:
   Serial.println("\nConnected to network");
   Serial.print("My IP address is: ");
@@ -99,10 +118,15 @@ void setup() {
   //  WiFiClient client;
   MySQL_Connection conn(&client);
   Serial.print("Connecting to SQL...  ");
-  if (conn.connect(server_addr, 3306, user, password))
+  if (conn.connect(server_addr, 3306, user, password)) {
+    matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);
+    buzz(100, 3, 200);
     Serial.println("OK.");
-  else
+  } else {
+    matrix.loadFrame(LEDMATRIX_EMOJI_SAD);
+    buzz(5000, 1, 0);
     Serial.println("FAILED.");
+  }
 
   // create MySQL cursor object
   MySQL_Cursor* cursor;
@@ -115,6 +139,12 @@ void setup() {
 
 void loop() {
   if (datatosave) {
+    if (!conn.connected()) {
+      conn.connect(server_addr, 3306, user, password);
+      matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);
+      buzz(100, 2, 200);
+    }
+
     if (conn.connected())
     {
       // Initiate the query class instance
@@ -132,7 +162,8 @@ void loop() {
         matrix.loadFrame(LEDMATRIX_HEART_BIG);
         delay(500);      
         if (result) {
-          matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);        
+          matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);  
+          buzz(50, 3, 50);
         } else {
           matrix.loadFrame(LEDMATRIX_EMOJI_SAD); 
         }
